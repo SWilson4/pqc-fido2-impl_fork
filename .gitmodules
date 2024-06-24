@@ -1,7 +1,7 @@
 [submodule "java-webauthn-server"]
 	path = java-webauthn-server
-	url = git@github.com:sandbox-quantum/java-webauthn-server_fork.git
-	branch = add_Kyber768_Dilithium3_and_liboqs
+	url = git@github.com:SWilson4/java-webauthn-server_fork.git
+	branch = dilithium-benchmarking
 [submodule "liboqs-java"]
 	path = liboqs-java
 	url = git@github.com:sandbox-quantum/liboqs-java_fork.git
