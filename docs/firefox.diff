@@ -1,7 +1,7 @@
 diff -r 3422b8cabbef Cargo.toml
 --- a/Cargo.toml	Tue Aug 01 07:07:08 2023 +0000
-+++ b/Cargo.toml	Tue Jan 09 16:54:35 2024 +0100
-@@ -89,6 +89,8 @@
++++ b/Cargo.toml	Mon Jun 24 21:51:39 2024 -0400
+@@ -89,6 +89,8 @@ opt-level = 2
  # code and will fail the build in unwanted cases.
  cmake = { path = "build/rust/cmake" }
  vcpkg = { path = "build/rust/vcpkg" }
@@ -10,10 +10,44 @@ diff -r 3422b8cabbef Cargo.toml
  
  # Helper crate for integration in the gecko build system.
  mozbuild = { path = "build/rust/mozbuild" }
+diff -r 3422b8cabbef browser/base/content/browser.js
+--- a/browser/base/content/browser.js	Tue Aug 01 07:07:08 2023 +0000
++++ b/browser/base/content/browser.js	Mon Jun 24 21:51:39 2024 -0400
+@@ -1830,6 +1830,21 @@ var gBrowserInit = {
+     Services.obs.addObserver(gXPInstallObserver, "addon-install-confirmation");
+     Services.obs.addObserver(gKeywordURIFixup, "keyword-uri-fixup");
+ 
++    // copied from https://developer.mozilla.org/en-US/docs/Web/API/PerformanceObserver
++    function perfObserver(list, observer) {
++      list.getEntries().forEach(entry => {
++        if (entry.entryType === "mark") {
++          console.log(
++            `BENCH ${entry.name} ${
++              entry.startTime + performance.timeOrigin
++            }`
++          );
++        }
++      });
++    }
++    const observer = new PerformanceObserver(perfObserver);
++    observer.observe({ entryTypes: ["measure", "mark"] });
++
+     BrowserOffline.init();
+     CanvasPermissionPromptHelper.init();
+     WebAuthnPromptHelper.init();
+@@ -7713,6 +7728,8 @@ var WebAuthnPromptHelper = {
+     let options = { escAction: "buttoncommand" };
+     let secondaryActions = [];
+     let message = "webauthn.userPresencePrompt";
++    window.performance.mark("prompt");
++
+     this.show(
+       tid,
+       "presence",
 diff -r 3422b8cabbef build/moz.configure/toolchain.configure
 --- a/build/moz.configure/toolchain.configure	Tue Aug 01 07:07:08 2023 +0000
-+++ b/build/moz.configure/toolchain.configure	Tue Jan 09 16:54:35 2024 +0100
-@@ -1752,7 +1752,7 @@
++++ b/build/moz.configure/toolchain.configure	Mon Jun 24 21:51:39 2024 -0400
+@@ -1752,7 +1752,7 @@ def select_linker_tmpl(host_or_target):
              die("Unsupported linker " + linker)
  
          # Check the kind of linker
@@ -22,7 +56,7 @@ diff -r 3422b8cabbef build/moz.configure/toolchain.configure
          cmd_base = c_compiler.wrapper + [c_compiler.compiler] + c_compiler.flags
  
          def try_linker(linker):
-@@ -1782,7 +1782,7 @@
+@@ -1782,7 +1782,7 @@ def select_linker_tmpl(host_or_target):
              if retcode == 1 and "Logging ld64 options" in stderr:
                  kind = "ld64"
  
@@ -33,8 +67,8 @@ diff -r 3422b8cabbef build/moz.configure/toolchain.configure
              elif "mold" in stdout:
 diff -r 3422b8cabbef dom/webauthn/authrs_bridge/Cargo.toml
 --- a/dom/webauthn/authrs_bridge/Cargo.toml	Tue Aug 01 07:07:08 2023 +0000
-+++ b/dom/webauthn/authrs_bridge/Cargo.toml	Tue Jan 09 16:54:35 2024 +0100
-@@ -5,7 +5,7 @@
++++ b/dom/webauthn/authrs_bridge/Cargo.toml	Mon Jun 24 21:51:39 2024 -0400
+@@ -5,7 +5,7 @@ edition = "2021"
  authors = ["Martin Sirringhaus", "John Schanck"]
  
  [dependencies]
@@ -45,8 +79,8 @@ diff -r 3422b8cabbef dom/webauthn/authrs_bridge/Cargo.toml
  nserror = { path = "../../../xpcom/rust/nserror" }
 diff -r 3422b8cabbef dom/webauthn/authrs_bridge/src/lib.rs
 --- a/dom/webauthn/authrs_bridge/src/lib.rs	Tue Aug 01 07:07:08 2023 +0000
-+++ b/dom/webauthn/authrs_bridge/src/lib.rs	Tue Jan 09 16:54:35 2024 +0100
-@@ -293,7 +293,7 @@
++++ b/dom/webauthn/authrs_bridge/src/lib.rs	Mon Jun 24 21:51:39 2024 -0400
+@@ -293,7 +293,7 @@ fn status_callback(
  ) {
      loop {
          match status_rx.recv() {
@@ -55,7 +89,7 @@ diff -r 3422b8cabbef dom/webauthn/authrs_bridge/src/lib.rs
                  debug!("STATUS: device available: {}", dev_info)
              }
              Ok(StatusUpdate::DeviceUnavailable { dev_info }) => {
-@@ -301,16 +301,16 @@
+@@ -301,16 +301,16 @@ fn status_callback(
              }
              Ok(StatusUpdate::Success { dev_info }) => {
                  debug!("STATUS: success using device: {}", dev_info);
@@ -75,7 +109,7 @@ diff -r 3422b8cabbef dom/webauthn/authrs_bridge/src/lib.rs
              Ok(StatusUpdate::PresenceRequired) => {
                  debug!("STATUS: Waiting for user presence");
                  let notification_str = make_prompt("presence", tid, origin, browsing_context_id);
-@@ -360,9 +360,9 @@
+@@ -360,9 +360,9 @@ fn status_callback(
              Ok(StatusUpdate::PinUvError(e)) => {
                  warn!("Unexpected error: {:?}", e)
              }
@@ -87,3 +121,22 @@ diff -r 3422b8cabbef dom/webauthn/authrs_bridge/src/lib.rs
                      dev_info, auth_info
                  );
              }
+diff -r 3422b8cabbef extensions/spellcheck/hunspell/src/csutil.cxx
+--- a/extensions/spellcheck/hunspell/src/csutil.cxx	Tue Aug 01 07:07:08 2023 +0000
++++ b/extensions/spellcheck/hunspell/src/csutil.cxx	Mon Jun 24 21:51:39 2024 -0400
+@@ -108,6 +108,7 @@ static struct unicode_info2* utf_tbl = N
+ static int utf_tbl_count =
+     0;  // utf_tbl can be used by multiple Hunspell instances
+ 
++#ifndef MOZILLA_CLIENT
+ void myopen(std::ifstream& stream, const char* path, std::ios_base::openmode mode)
+ {
+ #if defined(_WIN32) && defined(_MSC_VER)
+@@ -127,6 +128,7 @@ void myopen(std::ifstream& stream, const
+ #endif
+   stream.open(path, mode);
+ }
++#endif
+ 
+ std::string& u16_u8(std::string& dest, const std::vector<w_char>& src) {
+   dest.clear();
